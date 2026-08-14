@@ -1,0 +1,41 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Criar estrutura do projeto Flutter
+        working-directory: Flexao3000
+        run: |
+          cp lib/main.dart /tmp/main_backup.dart
+          flutter create --project-name flexao_3000 --org com.ativore.flexao --platforms android .
+          cp /tmp/main_backup.dart lib/main.dart
+
+      - name: Instalar dependências
+        working-directory: Flexao3000
+        run: flutter pub get
+
+      - name: Build APK release
+        working-directory: Flexao3000
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: flexao-3000
+          path: Flexao3000/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30

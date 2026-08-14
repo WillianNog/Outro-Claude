@@ -1,0 +1,25 @@
+name: flexao_3000
+description: Shared push-up challenge app.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  google_fonts: ^6.2.1
+  shared_preferences: ^2.3.2
+  share_plus: ^13.0.0
+  supabase_flutter: ^2.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

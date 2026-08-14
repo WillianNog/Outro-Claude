@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="820" viewBox="0 0 390 820">
+  <rect width="390" height="820" rx="34" fill="#f5f7f3"/>
+  <text x="24" y="58" fill="#182018" font-family="Arial" font-size="28" font-weight="700">Olá, Willian</text>
+  <rect x="248" y="31" width="118" height="34" rx="17" fill="#e6f2d4"/>
+  <text x="260" y="53" fill="#416b0a" font-family="Arial" font-size="13" font-weight="700">🔥 25 hoje</text>
+  <text x="24" y="103" fill="#5d8f16" font-family="Arial" font-size="12" font-weight="700" letter-spacing="2">DESAFIO 2026</text>
+  <rect x="20" y="118" width="350" height="235" rx="28" fill="#ffffff"/>
+  <text x="43" y="190" fill="#5d8f16" font-family="Arial" font-size="58" font-weight="700">25</text>
+  <text x="45" y="216" fill="#657064" font-family="Arial" font-size="16">de 3.000 flexões</text>
+  <rect x="43" y="250" width="304" height="12" rx="6" fill="#e3e8df"/>
+  <rect x="43" y="250" width="4" height="12" rx="6" fill="#5d8f16"/>
+  <text x="43" y="300" fill="#182018" font-family="Arial" font-size="15" font-weight="700">2.975 faltam</text>
+  <text x="211" y="300" fill="#657064" font-family="Arial" font-size="14">141 dias até 31 dez</text>
+  <text x="20" y="398" fill="#182018" font-family="Arial" font-size="18" font-weight="700">Adicionar flexões</text>
+  <g fill="#5d8f16"><rect x="20" y="420" width="106" height="58" rx="16"/><rect x="142" y="420" width="106" height="58" rx="16"/><rect x="264" y="420" width="106" height="58" rx="16"/></g>
+  <g fill="#fff" font-family="Arial" font-size="19" font-weight="700" text-anchor="middle"><text x="73" y="456">+1</text><text x="195" y="456">+5</text><text x="317" y="456">+10</text></g>
+  <rect x="20" y="510" width="350" height="82" rx="20" fill="#fff" stroke="#e1e6de"/>
+  <text x="59" y="544" fill="#182018" font-family="Arial" font-size="16" font-weight="700">Hoje</text><text x="59" y="568" fill="#657064" font-family="Arial" font-size="14">Continue o ritmo.</text><text x="337" y="557" fill="#182018" font-family="Arial" font-size="25" font-weight="700">25</text>
+  <rect x="0" y="732" width="390" height="88" fill="#fff"/>
+  <g fill="#657064" font-family="Arial" font-size="11" text-anchor="middle"><text x="48" y="789">Início</text><text x="145" y="789">Ranking</text><text x="243" y="789">Histórico</text><text x="340" y="789">Grupo</text></g>
+  <circle cx="48" cy="753" r="12" fill="#5d8f16"/>
+</svg>
