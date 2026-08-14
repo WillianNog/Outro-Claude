@@ -8,15 +8,13 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const _supabaseUrl = 'https://fvsynfsljatdbevbgmsk.supabase.co';
-const _supabaseAnonKey =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ2c3luZnNsamF0ZGJldmJnbXNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY2NjU0NTcsImV4cCI6MjEwMjI0MTQ1N30.Sm6tV2LBYla5XlWsVaW4FMKBxyA9QFEUOkOFwbsrdRw';
+import 'supabase_config.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Supabase.initialize(url: _supabaseUrl, anonKey: _supabaseAnonKey);
+  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
   runApp(const FlexaoApp());
 }
 

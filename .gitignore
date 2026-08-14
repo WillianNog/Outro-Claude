@@ -1,0 +1,17 @@
+# Credenciais — nunca commitar
+Flexao3000/lib/supabase_config.dart
+secrets.local.ps1
+
+# Flutter build
+Flexao3000/build/
+Flexao3000/.dart_tool/
+Flexao3000/.flutter-plugins
+Flexao3000/.flutter-plugins-dependencies
+Flexao3000/.packages
+Flexao3000/android/
+Flexao3000/ios/
+Flexao3000/linux/
+Flexao3000/macos/
+Flexao3000/web/
+Flexao3000/windows/
+*.zip

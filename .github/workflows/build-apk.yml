@@ -18,12 +18,21 @@ jobs:
         with:
           channel: stable
 
+      - name: Criar arquivo de credenciais
+        run: |
+          cat > Flexao3000/lib/supabase_config.dart << 'EOF'
+          const supabaseUrl = '${{ secrets.SUPABASE_URL }}';
+          const supabaseAnonKey = '${{ secrets.SUPABASE_ANON_KEY }}';
+          EOF
+
       - name: Criar estrutura do projeto Flutter
         working-directory: Flexao3000
         run: |
           cp lib/main.dart /tmp/main_backup.dart
+          cp lib/supabase_config.dart /tmp/config_backup.dart
           flutter create --project-name flexao_3000 --org com.ativore.flexao --platforms android .
           cp /tmp/main_backup.dart lib/main.dart
+          cp /tmp/config_backup.dart lib/supabase_config.dart
 
       - name: Instalar dependências
         working-directory: Flexao3000
