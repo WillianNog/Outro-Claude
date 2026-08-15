@@ -1,9 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,16 +15,47 @@ import 'supabase_config.dart';
 
 SupabaseClient get _db => Supabase.instance.client;
 
+const _qrJoinPrefix = 'metafit://join/';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
-  runApp(const FlexaoApp());
+  if (supabaseUrl.isEmpty ||
+      supabasePublishableKey.isEmpty ||
+      !supabaseUrl.startsWith('http')) {
+    runApp(const _ConfigMissingApp());
+    return;
+  }
+  await Supabase.initialize(
+      url: supabaseUrl, publishableKey: supabasePublishableKey);
+  runApp(const MetaFitApp());
+}
+
+class _ConfigMissingApp extends StatelessWidget {
+  const _ConfigMissingApp();
+  @override
+  Widget build(BuildContext context) => const MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'Configuração do Supabase ausente ou inválida.\n\n'
+                'Copie lib/supabase_config.dart.sample para lib/supabase_config.dart '
+                'e preencha supabaseUrl/supabasePublishableKey.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16),
+              ),
+            ),
+          ),
+        ),
+      );
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 
-class FlexaoApp extends StatelessWidget {
-  const FlexaoApp({super.key});
+class MetaFitApp extends StatelessWidget {
+  const MetaFitApp({super.key});
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -35,10 +69,10 @@ class FlexaoApp extends StatelessWidget {
         ],
         theme: ThemeData(
           useMaterial3: true,
-          scaffoldBackgroundColor: const Color(0xfff5f7f3),
+          scaffoldBackgroundColor: const Color(0xfff5f7fa),
           textTheme: GoogleFonts.interTextTheme(),
           colorScheme: const ColorScheme.light(
-            primary: Color(0xff5d8f16),
+            primary: Color(0xff2A6DF4),
             onPrimary: Colors.white,
             surface: Colors.white,
           ),
@@ -183,13 +217,41 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         MaterialPageRoute(builder: (_) => const _AuthedRouter()),
       );
     } on AuthException catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.message;
         _loading = false;
       });
     } catch (_) {
+      if (!mounted) return;
       setState(() {
         _error = 'Erro ao conectar. Verifique sua internet.';
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _forgotPassword() async {
+    final email = _email.text.trim();
+    if (email.isEmpty) {
+      setState(() => _error = 'Preencha o e-mail acima e toque em "Esqueci minha senha" de novo.');
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await _db.auth.resetPasswordForEmail(email);
+      if (!mounted) return;
+      setState(() {
+        _error = 'Enviamos um link de redefinição para $email. Confira também o spam.';
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Não deu para enviar agora. Verifique sua internet e tente de novo.';
         _loading = false;
       });
     }
@@ -217,7 +279,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                  color: const Color(0xff5d8f16),
+                  color: const Color(0xff2A6DF4),
                   borderRadius: BorderRadius.circular(24),
                 ),
                 child: const Icon(Icons.fitness_center_rounded,
@@ -231,7 +293,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               const Text(
                 'Registre suas flexões e acompanhe a evolução de todos até o fim do ano.',
                 style: TextStyle(
-                    color: Color(0xff657064), fontSize: 16, height: 1.4),
+                    color: Color(0xff67707d), fontSize: 16, height: 1.4),
               ),
               const SizedBox(height: 34),
               TextField(
@@ -259,11 +321,20 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   ),
                 ),
               ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _loading ? null : _forgotPassword,
+                  style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 36)),
+                  child: const Text('Esqueci minha senha', style: TextStyle(fontSize: 12.5)),
+                ),
+              ),
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Text(_error!,
                     style: TextStyle(
-                        color: _error!.contains('Verifique seu e-mail')
+                        color: _error!.contains('Verifique seu e-mail') ||
+                                _error!.contains('Enviamos um link')
                             ? Colors.orange[700]
                             : Colors.red)),
               ],
@@ -289,13 +360,81 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               const SizedBox(height: 24),
               const Center(
                 child: Text(
-                  'Flexão 3000 · desafio entre amigos',
-                  style: TextStyle(color: Color(0xff657064), fontSize: 12),
+                  'MetaFit · desafio entre amigos',
+                  style: TextStyle(color: Color(0xff67707d), fontSize: 12),
                 ),
               ),
             ]),
           ),
         ),
+      );
+}
+
+// ─── Escanear QR do grupo ──────────────────────────────────────────────────────
+
+class _ScanQrScreen extends StatefulWidget {
+  const _ScanQrScreen();
+  @override
+  State<_ScanQrScreen> createState() => _ScanQrScreenState();
+}
+
+class _ScanQrScreenState extends State<_ScanQrScreen> {
+  bool _handled = false;
+
+  String? _extractCode(String raw) {
+    if (raw.startsWith(_qrJoinPrefix)) {
+      final code = raw.substring(_qrJoinPrefix.length).trim();
+      return code.isEmpty ? null : code.toUpperCase();
+    }
+    if (raw.trim().toUpperCase().startsWith('META-')) {
+      return raw.trim().toUpperCase();
+    }
+    return null;
+  }
+
+  void _onDetect(BarcodeCapture capture) {
+    if (_handled) return;
+    final raw = capture.barcodes.isEmpty ? null : capture.barcodes.first.rawValue;
+    if (raw == null) return;
+    final code = _extractCode(raw);
+    if (code == null) return;
+    _handled = true;
+    Navigator.of(context).pop(code);
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+          title: const Text('Escanear código do grupo'),
+        ),
+        body: Stack(fit: StackFit.expand, children: [
+          MobileScanner(onDetect: _onDetect),
+          IgnorePointer(
+            child: Center(
+              child: Container(
+                width: 240,
+                height: 240,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white, width: 2.5),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
+            ),
+          ),
+          const Positioned(
+            bottom: 44,
+            left: 24,
+            right: 24,
+            child: Text(
+              'Aponte a câmera para o QR do seu amigo',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white, fontSize: 14),
+            ),
+          ),
+        ]),
       );
 }
 
@@ -313,10 +452,16 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
   bool _loading = false;
   String? _error;
 
+  @override
+  void dispose() {
+    _codeCtrl.dispose();
+    super.dispose();
+  }
+
   String _randomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     final rng = Random.secure();
-    return 'FLEX-${List.generate(4, (_) => chars[rng.nextInt(chars.length)]).join()}';
+    return 'META-${List.generate(4, (_) => chars[rng.nextInt(chars.length)]).join()}';
   }
 
   Future<void> _createGroup() async {
@@ -326,12 +471,21 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
     });
     try {
       final uid = _db.auth.currentUser!.id;
-      final group = await _db.from('groups').insert({
-        'name': 'Flexão 3000',
-        'invite_code': _randomCode(),
-        'owner_id': uid,
-      }).select().single();
-      final gid = group['id'] as String;
+      Map<String, dynamic>? group;
+      for (var attempt = 0; attempt < 3; attempt++) {
+        try {
+          group = await _db.from('groups').insert({
+            'name': 'MetaFit',
+            'invite_code': _randomCode(),
+            'owner_id': uid,
+          }).select().single();
+          break;
+        } on PostgrestException catch (e) {
+          if (e.code == '23505' && attempt < 2) continue;
+          rethrow;
+        }
+      }
+      final gid = group!['id'] as String;
       await _db
           .from('group_members')
           .insert({'group_id': gid, 'user_id': uid});
@@ -344,11 +498,21 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
             userName: widget.displayName, groupId: gid, localMode: false),
       ));
     } catch (_) {
+      if (!mounted) return;
       setState(() {
         _error = 'Erro ao criar grupo. Tente novamente.';
         _loading = false;
       });
     }
+  }
+
+  Future<void> _scanQr() async {
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const _ScanQrScreen()),
+    );
+    if (code == null || !mounted) return;
+    _codeCtrl.text = code;
+    _joinGroup();
   }
 
   Future<void> _joinGroup() async {
@@ -362,34 +526,32 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
       _error = null;
     });
     try {
-      final uid = _db.auth.currentUser!.id;
-      final group = await _db
-          .from('groups')
-          .select()
-          .eq('invite_code', code)
-          .maybeSingle();
-      if (group == null) {
+      final rows = await _db.rpc('join_group_by_code', params: {'p_code': code});
+      final list = rows as List;
+      if (list.isEmpty) {
+        if (!mounted) return;
         setState(() {
           _error = 'Código não encontrado. Verifique e tente novamente.';
           _loading = false;
         });
         return;
       }
-      final gid = group['id'] as String;
-      await _db.from('group_members').upsert(
-          {'group_id': gid, 'user_id': uid},
-          onConflict: 'group_id,user_id');
-      await _db
-          .from('profiles')
-          .update({'active_group_id': gid}).eq('id', uid);
+      final gid = (list.first as Map)['group_id'] as String;
       if (!mounted) return;
       Navigator.of(context).pushReplacement(MaterialPageRoute(
         builder: (_) => HomeScreen(
             userName: widget.displayName, groupId: gid, localMode: false),
       ));
-    } catch (_) {
+    } on PostgrestException catch (_) {
+      if (!mounted) return;
       setState(() {
-        _error = 'Erro ao entrar no grupo. Tente novamente.';
+        _error = 'Erro do servidor. Tente novamente em instantes.';
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Sem conexão. Verifique sua internet e tente de novo.';
         _loading = false;
       });
     }
@@ -407,7 +569,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
                 width: 72,
                 height: 72,
                 decoration: BoxDecoration(
-                    color: const Color(0xff5d8f16),
+                    color: const Color(0xff2A6DF4),
                     borderRadius: BorderRadius.circular(24)),
                 child: const Icon(Icons.group_rounded,
                     color: Colors.white, size: 34),
@@ -420,7 +582,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
               const Text(
                 'Crie um grupo para convidar amigos, ou entre em um grupo com o código que recebeu.',
                 style: TextStyle(
-                    color: Color(0xff657064), fontSize: 16, height: 1.4),
+                    color: Color(0xff67707d), fontSize: 16, height: 1.4),
               ),
               const SizedBox(height: 36),
               Container(
@@ -435,7 +597,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
                       const SizedBox(height: 6),
                       const Text(
                           'Você vira o admin e recebe um código para compartilhar.',
-                          style: TextStyle(color: Color(0xff657064))),
+                          style: TextStyle(color: Color(0xff67707d))),
                       const SizedBox(height: 16),
                       FilledButton(
                         onPressed: _loading ? null : _createGroup,
@@ -449,7 +611,7 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
                 Expanded(child: Divider()),
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: 14),
-                  child: Text('ou', style: TextStyle(color: Color(0xff657064))),
+                  child: Text('ou', style: TextStyle(color: Color(0xff67707d))),
                 ),
                 Expanded(child: Divider()),
               ]),
@@ -465,12 +627,12 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
                               fontWeight: FontWeight.w800, fontSize: 18)),
                       const SizedBox(height: 6),
                       const Text('Cole o código que alguém compartilhou.',
-                          style: TextStyle(color: Color(0xff657064))),
+                          style: TextStyle(color: Color(0xff67707d))),
                       const SizedBox(height: 16),
                       TextField(
                         controller: _codeCtrl,
                         textCapitalization: TextCapitalization.characters,
-                        decoration: _inputDeco('Ex.: FLEX-A1B2'),
+                        decoration: _inputDeco('Ex.: META-A1B2'),
                       ),
                       const SizedBox(height: 12),
                       OutlinedButton(
@@ -478,6 +640,12 @@ class _GroupSetupScreenState extends State<GroupSetupScreen> {
                         style: OutlinedButton.styleFrom(
                             minimumSize: const Size.fromHeight(50)),
                         child: const Text('Entrar no grupo'),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton.icon(
+                        onPressed: _loading ? null : _scanQr,
+                        icon: const Icon(Icons.qr_code_scanner, size: 18),
+                        label: const Text('ou escanear QR do grupo'),
                       ),
                     ]),
               ),
@@ -532,8 +700,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<_Player> _players = [];
   String _inviteCode = '';
-  String _groupName = 'Flexão 3000';
+  String _groupName = 'MetaFit';
+  String? _groupOwnerId;
   RealtimeChannel? _rtChannel;
+  Timer? _rankingDebounce;
+  bool _syncError = false;
+  final Set<String> _pendingSync = {};
 
   String get _todayKey => _fmt(DateTime.now());
   int get _today => _daily[_todayKey] ?? 0;
@@ -576,6 +748,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _rtChannel?.unsubscribe();
+    _rankingDebounce?.cancel();
     super.dispose();
   }
 
@@ -593,16 +766,28 @@ class _HomeScreenState extends State<HomeScreen> {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_storageKey);
     if (raw != null) {
-      final m = Map<String, dynamic>.from(jsonDecode(raw) as Map);
-      _daily = m.map((k, v) => MapEntry(k, v as int));
+      try {
+        final decoded = jsonDecode(raw);
+        final m = Map<String, dynamic>.from(decoded as Map);
+        _daily =
+            m.map((k, v) => MapEntry(k, v is int ? v : int.tryParse('$v') ?? 0));
+      } catch (e) {
+        debugPrint('MetaFit: dados locais corrompidos, reiniciando ($e)');
+        _daily = {_todayKey: 25};
+      }
     } else {
       _daily[_todayKey] = 25;
     }
     _players = [
-      _Player(widget.userName, _today, const Color(0xffb7ff4a)),
-      const _Player('Seu amigo', 29, Color(0xff8db8ff)),
+      _Player(widget.userName, _today, const Color(0xffffc857)),
+      const _Player('Seu amigo', 29, Color(0xffff8b7b)),
     ];
-    _inviteCode = 'FLEX-2026';
+    _inviteCode = 'META-2026';
+  }
+
+  void _syncLocalPlayer() {
+    if (!widget.localMode || _players.isEmpty) return;
+    _players[0] = _Player(widget.userName, _today, _players[0].color);
   }
 
   Future<void> _loadEntries() async {
@@ -615,21 +800,34 @@ class _HomeScreenState extends State<HomeScreen> {
       for (final r in rows as List) {
         m[r['date'] as String] = r['count'] as int;
       }
-      if (mounted) setState(() => _daily = m);
-    } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _daily = m;
+          _syncError = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('MetaFit: falha ao carregar entradas ($e)');
+      if (mounted) setState(() => _syncError = true);
+    }
   }
 
   Future<void> _loadGroup() async {
     try {
       final g = await _db
           .from('groups')
-          .select('id, name, invite_code')
+          .select('id, name, invite_code, owner_id')
           .eq('id', widget.groupId)
           .single();
       _inviteCode = g['invite_code'] as String;
       _groupName = g['name'] as String;
+      _groupOwnerId = g['owner_id'] as String?;
+      if (mounted) setState(() => _syncError = false);
       await _loadRanking();
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('MetaFit: falha ao carregar grupo ($e)');
+      if (mounted) setState(() => _syncError = true);
+    }
   }
 
   Future<void> _loadRanking() async {
@@ -640,33 +838,49 @@ class _HomeScreenState extends State<HomeScreen> {
           .select('user_id, profiles(display_name)')
           .eq('group_id', widget.groupId);
 
-      final colors = const [
-        Color(0xffb7ff4a),
-        Color(0xff8db8ff),
-        Color(0xffffd580),
+      const colors = [
+        Color(0xffffc857),
+        Color(0xffff8b7b),
+        Color(0xffb79cff),
         Color(0xffffb7c5),
-        Color(0xffb7e5ff),
+        Color(0xffffd7a8),
       ];
+
+      final memberList = members as List;
+      final memberIds = memberList.map((m) => m['user_id'] as String).toList();
+      final counts = <String, int>{};
+      if (memberIds.isNotEmpty) {
+        final rows = await _db
+            .from('entries')
+            .select('user_id, count')
+            .eq('date', today)
+            .inFilter('user_id', memberIds);
+        for (final r in rows as List) {
+          counts[r['user_id'] as String] = r['count'] as int;
+        }
+      }
 
       final List<_Player> players = [];
       int ci = 0;
-      for (final m in members as List) {
+      for (final m in memberList) {
         final uid = m['user_id'] as String;
         final name =
             (m['profiles'] as Map?)!['display_name'] as String? ?? 'Amigo';
-        final row = await _db
-            .from('entries')
-            .select('count')
-            .eq('user_id', uid)
-            .eq('date', today)
-            .maybeSingle();
         players.add(
-            _Player(name, (row?['count'] as int?) ?? 0, colors[ci % colors.length]));
+            _Player(name, counts[uid] ?? 0, colors[ci % colors.length]));
         ci++;
       }
       players.sort((a, b) => b.today.compareTo(a.today));
-      if (mounted) setState(() => _players = players);
-    } catch (_) {}
+      if (mounted) {
+        setState(() {
+          _players = players;
+          _syncError = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('MetaFit: falha ao carregar ranking ($e)');
+      if (mounted) setState(() => _syncError = true);
+    }
   }
 
   void _subscribeRealtime() {
@@ -677,19 +891,38 @@ class _HomeScreenState extends State<HomeScreen> {
           event: PostgresChangeEvent.all,
           schema: 'public',
           table: 'entries',
-          callback: (_) => _loadRanking(),
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'group_id',
+            value: widget.groupId,
+          ),
+          callback: (_) {
+            _rankingDebounce?.cancel();
+            _rankingDebounce =
+                Timer(const Duration(milliseconds: 400), _loadRanking);
+          },
         )
-        .subscribe();
+        .subscribe((status, error) {
+          if (error != null) {
+            debugPrint('MetaFit: erro no canal realtime ($error)');
+          }
+        });
   }
 
   void _add(int n) {
-    setState(() => _daily[_todayKey] = _today + n);
+    setState(() {
+      _daily[_todayKey] = _today + n;
+      _syncLocalPlayer();
+    });
     widget.localMode ? _saveLocal() : _saveCloud();
   }
 
   void _undo() {
     if (_today == 0) return;
-    setState(() => _daily[_todayKey] = _today - 1);
+    setState(() {
+      _daily[_todayKey] = _today - 1;
+      _syncLocalPlayer();
+    });
     widget.localMode ? _saveLocal() : _saveCloud();
   }
 
@@ -706,7 +939,11 @@ class _HomeScreenState extends State<HomeScreen> {
         'count': _today,
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'user_id,date');
-    } catch (_) {}
+      if (mounted && _pendingSync.remove(_todayKey)) setState(() {});
+    } catch (e) {
+      debugPrint('MetaFit: falha ao salvar na nuvem ($e)');
+      if (mounted) setState(() => _pendingSync.add(_todayKey));
+    }
   }
 
   DateTime _parseKey(String k) {
@@ -739,65 +976,125 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _editDay(DateTime day) async {
     final ctrl = TextEditingController(text: '${_daily[_fmt(day)] ?? 0}');
-    final result = await showDialog<int>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Editar ${day.day}/${day.month}/${day.year}'),
-        content: TextField(
-            controller: ctrl,
-            keyboardType: TextInputType.number,
-            autofocus: true,
-            decoration: _inputDeco('Quantidade de flexões')),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, 0),
-              child: const Text('Remover')),
-          FilledButton(
-              onPressed: () =>
-                  Navigator.pop(ctx, int.tryParse(ctrl.text) ?? 0),
-              child: const Text('Salvar')),
-        ],
-      ),
-    );
-    if (result == null) return;
+    int? result;
+    try {
+      result = await showDialog<int>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('Editar ${day.day}/${day.month}/${day.year}'),
+          content: TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: _inputDeco('Quantidade de flexões')),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancelar')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, 0),
+                child: const Text('Remover')),
+            FilledButton(
+                onPressed: () =>
+                    Navigator.pop(ctx, int.tryParse(ctrl.text) ?? 0),
+                child: const Text('Salvar')),
+          ],
+        ),
+      );
+    } finally {
+      ctrl.dispose();
+    }
+    if (result == null || !mounted) return;
     final key = _fmt(day);
+    final value = result;
     setState(() {
-      if (result <= 0) _daily.remove(key);
-      else _daily[key] = result;
+      if (value <= 0) {
+        _daily.remove(key);
+      } else {
+        _daily[key] = value;
+      }
+      _syncLocalPlayer();
     });
     if (widget.localMode) {
       _saveLocal();
     } else {
       try {
         final uid = _db.auth.currentUser!.id;
-        if (result <= 0) {
+        if (value <= 0) {
           await _db.from('entries').delete().eq('user_id', uid).eq('date', key);
         } else {
           await _db.from('entries').upsert({
             'user_id': uid,
             'date': key,
-            'count': result,
+            'count': value,
             'updated_at': DateTime.now().toIso8601String(),
           }, onConflict: 'user_id,date');
         }
-      } catch (_) {}
+        if (mounted && _pendingSync.remove(key)) setState(() {});
+      } catch (e) {
+        debugPrint('MetaFit: falha ao salvar edição de dia ($e)');
+        if (mounted) setState(() => _pendingSync.add(key));
+      }
     }
   }
 
   void _shareInvite() {
     SharePlus.instance.share(ShareParams(
         text:
-            'Bora somar flexões comigo! Entre no grupo Flexão 3000 com o código $_inviteCode.'));
+            'Bora somar flexões comigo! Entre no grupo MetaFit com o código $_inviteCode.'));
   }
 
-  void _signOut() async {
-    await _db.auth.signOut();
+  Future<void> _signOut() async {
+    try {
+      await _db.auth.signOut();
+    } catch (e) {
+      debugPrint('MetaFit: falha ao sair da conta ($e)');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Não deu para sair agora. Tente de novo.')));
+      return;
+    }
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const WelcomeScreen()));
+  }
+
+  Future<void> _deleteAccount() async {
+    final ownsGroup = !widget.localMode &&
+        _groupOwnerId != null &&
+        _groupOwnerId == _db.auth.currentUser?.id;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Excluir sua conta?'),
+        content: Text(
+          'Isso apaga sua conta, seu histórico de flexões e seu perfil, sem volta.'
+          '${ownsGroup ? ' Se você for dono de algum grupo, o grupo some pra todo mundo também.' : ''}',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Excluir')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _loading = true);
+    try {
+      await _db.functions.invoke('delete-account');
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const WelcomeScreen()));
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Não deu para excluir agora. Tente de novo em instantes.')));
+    }
   }
 
   @override
@@ -855,6 +1152,30 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _dashboard() => _shell(
         'Olá, ${widget.userName}',
         ListView(children: [
+          if (_syncError)
+            Container(
+              margin: const EdgeInsets.only(bottom: 14),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.orange[50],
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.orange[200]!),
+              ),
+              child: Row(children: [
+                Icon(Icons.wifi_off_rounded, color: Colors.orange[800], size: 20),
+                const SizedBox(width: 10),
+                const Expanded(
+                    child: Text('Não deu para atualizar os dados agora.',
+                        style: TextStyle(fontSize: 13))),
+                TextButton(
+                  onPressed: () {
+                    setState(() => _syncError = false);
+                    _load();
+                  },
+                  child: const Text('Tentar de novo'),
+                ),
+              ]),
+            ),
           Text('DESAFIO 2026',
               style: TextStyle(
                   color: Theme.of(context).colorScheme.primary,
@@ -905,6 +1226,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: const Text('Sair da conta'),
               ),
             ),
+            Center(
+              child: TextButton(
+                onPressed: _deleteAccount,
+                style: TextButton.styleFrom(foregroundColor: Colors.red[700]),
+                child: const Text('Excluir minha conta', style: TextStyle(fontSize: 12.5)),
+              ),
+            ),
           ],
         ]),
         badge: '🔥 $_today hoje',
@@ -924,20 +1252,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   height: 1)),
           const SizedBox(height: 4),
           const Text('de 3.000 flexões',
-              style: TextStyle(color: Color(0xff657064), fontSize: 16)),
+              style: TextStyle(color: Color(0xff67707d), fontSize: 16)),
           const SizedBox(height: 20),
           ClipRRect(
               borderRadius: BorderRadius.circular(99),
               child: LinearProgressIndicator(
                   value: progress,
                   minHeight: 12,
-                  backgroundColor: const Color(0xffe3e8df))),
+                  backgroundColor: const Color(0xffe7ecf3))),
           const SizedBox(height: 14),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text('${_goal - _total} faltam',
                 style: const TextStyle(fontWeight: FontWeight.w700)),
             Text('$_daysLeft dias até 31 dez',
-                style: const TextStyle(color: Color(0xff657064))),
+                style: const TextStyle(color: Color(0xff67707d))),
           ]),
         ]));
   }
@@ -960,25 +1288,43 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _todayCard() => Container(
-      padding: const EdgeInsets.all(18),
-      decoration: _cardDeco(),
-      child: Row(children: [
-        const Icon(Icons.calendar_today_outlined, color: Color(0xff5d8f16)),
-        const SizedBox(width: 12),
-        Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('Hoje', style: TextStyle(fontWeight: FontWeight.w700)),
-          Text(
-              widget.localMode
-                  ? 'Salvo neste celular.'
-                  : 'Salvo na nuvem, sincronizado com o grupo.',
-              style: const TextStyle(color: Color(0xff657064), fontSize: 12)),
-        ])),
-        Text('$_today',
-            style:
-                const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
-      ]));
+  Widget _todayCard() {
+    final pending = !widget.localMode && _pendingSync.contains(_todayKey);
+    return Container(
+        padding: const EdgeInsets.all(18),
+        decoration: _cardDeco(),
+        child: Row(children: [
+          Icon(
+              pending
+                  ? Icons.cloud_off_outlined
+                  : Icons.calendar_today_outlined,
+              color: pending ? Colors.orange[700] : const Color(0xff2A6DF4)),
+          const SizedBox(width: 12),
+          Expanded(
+              child:
+                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Hoje', style: TextStyle(fontWeight: FontWeight.w700)),
+            Text(
+                pending
+                    ? 'Não sincronizado ainda. Toque para tentar de novo.'
+                    : widget.localMode
+                        ? 'Salvo neste celular.'
+                        : 'Salvo na nuvem, sincronizado com o grupo.',
+                style: TextStyle(
+                    color:
+                        pending ? Colors.orange[700] : const Color(0xff67707d),
+                    fontSize: 12)),
+          ])),
+          if (pending)
+            IconButton(
+                onPressed: _saveCloud,
+                icon: const Icon(Icons.refresh, color: Color(0xff2A6DF4)),
+                tooltip: 'Tentar sincronizar de novo'),
+          Text('$_today',
+              style:
+                  const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
+        ]));
+  }
 
   // ── Ranking ─────────────────────────────────────────────────────────────────
 
@@ -989,21 +1335,21 @@ class _HomeScreenState extends State<HomeScreen> {
       ListView(children: [
         const Text('HOJE',
             style: TextStyle(
-                color: Color(0xff5d8f16),
+                color: Color(0xff2A6DF4),
                 letterSpacing: 1.5,
                 fontWeight: FontWeight.w800)),
         const SizedBox(height: 14),
         if (_players.isEmpty)
           const Text(
               'Nenhum participante ainda. Convide amigos pelo código do grupo.',
-              style: TextStyle(color: Color(0xff657064)))
+              style: TextStyle(color: Color(0xff67707d)))
         else
           ..._players.asMap().entries.map((e) => _rankItem(e.key + 1, e.value)),
         if (widget.localMode) ...[
           const SizedBox(height: 18),
           const Text(
               'Para ver amigos no ranking, crie uma conta e um grupo real.',
-              style: TextStyle(color: Color(0xff657064))),
+              style: TextStyle(color: Color(0xff67707d))),
         ],
       ]),
       badge: '$count ${count == 1 ? 'pessoa' : 'pessoas'}',
@@ -1022,7 +1368,7 @@ class _HomeScreenState extends State<HomeScreen> {
             backgroundColor: p.color,
             child: Text(p.name[0].toUpperCase(),
                 style: const TextStyle(
-                    color: Color(0xff101400), fontWeight: FontWeight.w800))),
+                    color: Color(0xff141a24), fontWeight: FontWeight.w800))),
         const SizedBox(width: 12),
         Expanded(
             child: Text(p.name,
@@ -1070,7 +1416,7 @@ class _HomeScreenState extends State<HomeScreen> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
         const SizedBox(height: 6),
         const Text('Toque em um dia para editar o registro.',
-            style: TextStyle(color: Color(0xff657064), fontSize: 12)),
+            style: TextStyle(color: Color(0xff67707d), fontSize: 12)),
         const SizedBox(height: 12),
         Container(
           height: 180,
@@ -1097,15 +1443,15 @@ class _HomeScreenState extends State<HomeScreen> {
                               const EdgeInsets.symmetric(horizontal: 4),
                           decoration: BoxDecoration(
                             color: day.day == DateTime.now().day
-                                ? const Color(0xff5d8f16)
-                                : const Color(0xffb8d68b),
+                                ? const Color(0xff2A6DF4)
+                                : const Color(0xffaec8f5),
                             borderRadius: BorderRadius.circular(6),
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text('${day.day}/${day.month}',
                             style: const TextStyle(
-                                fontSize: 10, color: Color(0xff657064))),
+                                fontSize: 10, color: Color(0xff67707d))),
                       ]),
                 ),
               );
@@ -1147,13 +1493,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       fontSize: 20, fontWeight: FontWeight.w800)),
               const SizedBox(height: 8),
               const Text('Código para convidar amigos',
-                  style: TextStyle(color: Color(0xff657064))),
+                  style: TextStyle(color: Color(0xff67707d))),
               const SizedBox(height: 14),
               if (widget.localMode)
                 const Text(
                     'Entre com uma conta para criar um grupo real e convidar amigos.',
-                    style: TextStyle(color: Color(0xff657064)))
-              else
+                    style: TextStyle(color: Color(0xff67707d)))
+              else ...[
                 Row(children: [
                   Expanded(
                     child: SelectableText(_inviteCode,
@@ -1161,13 +1507,35 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontSize: 24,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 2,
-                            color: Color(0xff5d8f16))),
+                            color: Color(0xff2A6DF4))),
                   ),
                   IconButton(
                       onPressed: _shareInvite,
                       icon: const Icon(Icons.share_outlined),
                       tooltip: 'Compartilhar código'),
                 ]),
+                const SizedBox(height: 18),
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xffe2e7ef)),
+                    ),
+                    child: QrImageView(
+                      data: '$_qrJoinPrefix$_inviteCode',
+                      size: 160,
+                      backgroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Center(
+                  child: Text('Peça para seu amigo escanear pelo app',
+                      style: TextStyle(color: Color(0xff67707d), fontSize: 12)),
+                ),
+              ],
             ]),
           ),
           if (!widget.localMode) ...[
@@ -1196,35 +1564,21 @@ class _HomeScreenState extends State<HomeScreen> {
             backgroundColor: p.color,
             child: Text(p.name[0].toUpperCase(),
                 style: const TextStyle(
-                    color: Color(0xff101400), fontWeight: FontWeight.w800))),
+                    color: Color(0xff141a24), fontWeight: FontWeight.w800))),
         const SizedBox(width: 12),
         Text(p.name, style: const TextStyle(fontWeight: FontWeight.w700)),
       ]));
 
   // ── Helpers visuais ─────────────────────────────────────────────────────────
 
-  BoxDecoration _cardDeco({double radius = 20, bool shadow = false}) =>
-      BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: const Color(0xffe1e6de)),
-          borderRadius: BorderRadius.circular(radius),
-          boxShadow: shadow
-              ? const [
-                  BoxShadow(
-                      color: Color(0x12000000),
-                      blurRadius: 20,
-                      offset: Offset(0, 8))
-                ]
-              : null);
-
   Widget _pill(String label) => Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-          color: const Color(0xffe6f2d4),
+          color: const Color(0xffe1ebff),
           borderRadius: BorderRadius.circular(99)),
       child: Text(label,
           style: const TextStyle(
-              color: Color(0xff416b0a), fontWeight: FontWeight.w700)));
+              color: Color(0xff1039a0), fontWeight: FontWeight.w700)));
 
   String _fmt(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -1248,7 +1602,7 @@ ButtonStyle _btnFull() => FilledButton.styleFrom(
 BoxDecoration _cardDeco({double radius = 20, bool shadow = false}) =>
     BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: const Color(0xffe1e6de)),
+        border: Border.all(color: const Color(0xffe2e7ef)),
         borderRadius: BorderRadius.circular(radius),
         boxShadow: shadow
             ? const [

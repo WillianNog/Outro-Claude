@@ -1,5 +1,5 @@
-name: flexao_3000
-description: Shared push-up challenge app.
+name: metafit
+description: MetaFit — shared push-up challenge app.
 publish_to: "none"
 version: 1.0.0+1
 
@@ -11,15 +11,17 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  google_fonts: ^6.2.1
+  google_fonts: ^8.2.1
   shared_preferences: ^2.3.2
   share_plus: ^13.0.0
   supabase_flutter: ^2.9.0
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.4.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true

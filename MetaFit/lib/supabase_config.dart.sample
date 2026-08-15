@@ -1,4 +1,4 @@
 // Copie este arquivo para supabase_config.dart e preencha os valores reais.
 // NUNCA commite o supabase_config.dart — ele está no .gitignore.
 const supabaseUrl = 'SUA_URL_SUPABASE';
-const supabaseAnonKey = 'SUA_ANON_KEY_SUPABASE';
+const supabasePublishableKey = 'SUA_PUBLISHABLE_KEY_SUPABASE'; // formato sb_publishable_...

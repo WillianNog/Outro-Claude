@@ -1,13 +1,13 @@
 # ============================================================
-# setup.ps1  –  Configuração completa do Flexão 3000
+# setup.ps1  –  Configuração completa do MetaFit
 # Rode como Administrador: clique direito > Executar como admin
 # ============================================================
 
 $ErrorActionPreference = "Stop"
 $FlutterDir = "C:\flutter"
-$ProjectDir = "C:\Projeto Flexão\Outro-Claude\Flexao3000"
+$ProjectDir = "C:\Projeto Flexão\Outro-Claude\MetaFit"
 
-Write-Host "`n=== Flexão 3000 - Setup ===" -ForegroundColor Green
+Write-Host "`n=== MetaFit - Setup ===" -ForegroundColor Green
 
 # ── 1. Baixar e instalar Flutter SDK ───────────────────────
 if (-not (Test-Path "$FlutterDir\bin\flutter.bat")) {
@@ -54,8 +54,8 @@ Push-Location $ProjectDir
 $ourMain = Get-Content "lib\main.dart" -Raw -ErrorAction SilentlyContinue
 
 & "$FlutterDir\bin\flutter.bat" create `
-    --project-name flexao_3000 `
-    --org com.ativore.flexao `
+    --project-name metafit `
+    --org com.ativore `
     --platforms android `
     . 2>&1 | Where-Object { $_ -notmatch "^  •|^\s*$" }
 

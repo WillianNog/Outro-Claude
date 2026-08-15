@@ -20,31 +20,127 @@ jobs:
 
       - name: Criar arquivo de credenciais
         run: |
-          cat > Flexao3000/lib/supabase_config.dart << 'EOF'
+          cat > MetaFit/lib/supabase_config.dart << 'EOF'
           const supabaseUrl = '${{ secrets.SUPABASE_URL }}';
-          const supabaseAnonKey = '${{ secrets.SUPABASE_ANON_KEY }}';
+          const supabasePublishableKey = '${{ secrets.SUPABASE_ANON_KEY }}';
           EOF
 
       - name: Criar estrutura do projeto Flutter
-        working-directory: Flexao3000
+        working-directory: MetaFit
         run: |
           cp lib/main.dart /tmp/main_backup.dart
           cp lib/supabase_config.dart /tmp/config_backup.dart
-          flutter create --project-name flexao_3000 --org com.ativore.flexao --platforms android .
+          flutter create --project-name metafit --org com.ativore --platforms android .
           cp /tmp/main_backup.dart lib/main.dart
           cp /tmp/config_backup.dart lib/supabase_config.dart
+          sed -i 's/android:label="metafit"/android:label="MetaFit"/' android/app/src/main/AndroidManifest.xml
 
       - name: Instalar dependências
-        working-directory: Flexao3000
+        working-directory: MetaFit
         run: flutter pub get
 
+      - name: Analisar código (gate de qualidade)
+        working-directory: MetaFit
+        run: flutter analyze
+
+      - name: Configurar assinatura de release
+        working-directory: MetaFit
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/metafit-release.keystore
+          cat > android/app/key.properties << EOF
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=metafit
+          storeFile=metafit-release.keystore
+          EOF
+          cat > android/app/build.gradle.kts << 'GRADLE_EOF'
+          import java.util.Properties
+          import java.io.FileInputStream
+
+          plugins {
+              id("com.android.application")
+              id("dev.flutter.flutter-gradle-plugin")
+          }
+
+          val keystoreProperties = Properties()
+          val keystorePropertiesFile = rootProject.file("app/key.properties")
+          if (keystorePropertiesFile.exists()) {
+              keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+          }
+
+          android {
+              namespace = "com.ativore.metafit"
+              compileSdk = flutter.compileSdkVersion
+              ndkVersion = flutter.ndkVersion
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              defaultConfig {
+                  applicationId = "com.ativore.metafit"
+                  minSdk = flutter.minSdkVersion
+                  targetSdk = flutter.targetSdkVersion
+                  versionCode = flutter.versionCode
+                  versionName = flutter.versionName
+              }
+
+              signingConfigs {
+                  if (keystorePropertiesFile.exists()) {
+                      create("release") {
+                          keyAlias = keystoreProperties["keyAlias"] as String
+                          keyPassword = keystoreProperties["keyPassword"] as String
+                          storeFile = file(keystoreProperties["storeFile"] as String)
+                          storePassword = keystoreProperties["storePassword"] as String
+                      }
+                  }
+              }
+
+              buildTypes {
+                  release {
+                      signingConfig = if (keystorePropertiesFile.exists())
+                          signingConfigs.getByName("release")
+                      else
+                          signingConfigs.getByName("debug")
+                  }
+              }
+          }
+
+          kotlin {
+              compilerOptions {
+                  jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+              }
+          }
+
+          flutter {
+              source = "../.."
+          }
+          GRADLE_EOF
+
       - name: Build APK release
-        working-directory: Flexao3000
+        working-directory: MetaFit
         run: flutter build apk --release
+
+      - name: Build AAB release (formato exigido pela Play Store)
+        working-directory: MetaFit
+        run: flutter build appbundle --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: flexao-3000
-          path: Flexao3000/build/app/outputs/flutter-apk/app-release.apk
+          name: metafit
+          path: MetaFit/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: metafit-aab
+          path: MetaFit/build/app/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Remover segredos do workspace
+        if: always()
+        working-directory: MetaFit
+        run: rm -f android/app/metafit-release.keystore android/app/key.properties lib/supabase_config.dart
