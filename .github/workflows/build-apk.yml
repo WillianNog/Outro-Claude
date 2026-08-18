@@ -33,6 +33,7 @@ jobs:
           flutter create --project-name metafit --org com.ativore --platforms android .
           cp /tmp/main_backup.dart lib/main.dart
           cp /tmp/config_backup.dart lib/supabase_config.dart
+          rm -f test/widget_test.dart
           sed -i 's/android:label="metafit"/android:label="MetaFit"/' android/app/src/main/AndroidManifest.xml
 
       - name: Instalar dependências
